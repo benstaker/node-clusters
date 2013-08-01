@@ -3,17 +3,17 @@ module.exports = function(cluster){
 	var config = {
 		services: [
 			{
-				service: require('./log/')(cluster)
+				path: './log/'
 			}
 		,	{
-				service: require('./db/')(cluster)
+				path: './db/'
 			}
 		,	{
-				service: require('./api/')(cluster)
+				path: './api/'
 			,	port: 3001
 			}
 		,	{
-				service: require('./app/')(cluster)
+				path: './app/'
 			,	port: 3000
 			}
 		]

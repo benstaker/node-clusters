@@ -16,6 +16,8 @@ var Server = {
 ,	start: function(autoRestart, cpus){
 		var that = this;
 
+		that.autoRestart = (typeof autoRestart !== 'undefined') ? autoRestart : true;
+
 		/**
 		* Amount of CPUs we are utilising
 		*/
@@ -52,7 +54,6 @@ var Server = {
 			/**
 			* Fork a process for each core
 			*/
-			console.log(envVars['currentService']);
 			for (var i = 0; i < that.cpus; i++){
 				envVars['currentService'] = envVars['currentService'] + coreServices[i];
 				cluster.fork(envVars);
@@ -84,16 +85,15 @@ var Server = {
 				* Services that require a server to be created.
 				*/
 				if(typeof services[currentService].port !== 'undefined'){
-					services[currentService].service.init().listen(services[currentService].port);
+					var app = require(services[currentService].path);
+					app.listen(services[currentService].port);
 				}
 				/**
 				* Other services
 				*/
 				else {
-					services[currentService].service.init();
-				}
-
-				
+					var app = require(services[currentService].path);
+				}				
 			};
 
 			/**

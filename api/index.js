@@ -4,22 +4,8 @@
 var	express		=	require('express')
 ,	app			=	express();
 
-module.exports = function(cluster){
+app.get('/', function(req, res){
+	res.json(200, {message: 'success'});
+});
 
-	var obj = {
-		app: app
-	,	cluster: cluster
-	,	init: function(){
-			var that = this;
-
-			that.app.get('/', function(req, res){
-				res.json(200, {message: 'success'});
-			});
-
-			return that.app;
-
-		}
-	};
-
-	return obj;
-};
+module.exports = app;
