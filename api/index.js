@@ -1,3 +1,6 @@
+/////////////////
+// API SERVICE //
+/////////////////
 var	express		=	require('express')
 ,	app			=	express();
 
@@ -10,8 +13,7 @@ module.exports = function(cluster){
 			var that = this;
 
 			that.app.get('/', function(req, res){
-				var body = 'API Service, running on worker: ' + that.cluster.worker.id;
-				res.send(body);
+				res.json(200, {message: 'success'});
 			});
 
 			return that.app;

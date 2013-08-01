@@ -1,3 +1,6 @@
+/////////////////
+// LOG SERVICE //
+/////////////////
 var	express		=	require('express')
 ,	app			=	express();
 

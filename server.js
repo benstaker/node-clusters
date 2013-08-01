@@ -1,17 +1,13 @@
 var cluster		=	require('cluster')
-,	os			=	require('os');
+,	os			=	require('os')
+,	config		=	require('./config')(cluster)
+,	services	=	config.services;
 
 /**
-* Services
+* Set the default values
 */
-var	appServer	=	require('./app/')(cluster)
-,	appPort		=	3000
-,	apiServer	=	require('./api/')(cluster)
-,	apiPort		=	appPort + 1
-,	dbServer	=	require('./db/')(cluster)
-,	dbPort		=	appPort + 2
-,	logServer	=	require('./log/')(cluster)
-,	logPort		=	appPort + 3;
+var coreServices = process.env.coreServices || [];
+var currentService = process.env.currentService || 0;
 
 var Server = {
 	name: 'Server'
@@ -19,8 +15,6 @@ var Server = {
 ,	autoRestart: true
 ,	start: function(autoRestart, cpus){
 		var that = this;
-
-		that.autoRestart = (typeof autoRestart !== 'undefined') ? autoRestart : true;
 
 		/**
 		* Amount of CPUs we are utilising
@@ -36,88 +30,90 @@ var Server = {
 		* Create child processes if we are the master process
 		*/
 		if(cluster.isMaster){
+			console.log('Starting ' + that.name + '...');
+
 			/**
-			* Fork the child processes
+			* Assign services to each of the cores
 			*/
-			for (var i = 0; i < that.cpus; i++) cluster.fork();
+			var servicesPerCore = Math.floor(services.length / that.cpus);
+			for (var i = 0; i < that.cpus; i++) coreServices.push(servicesPerCore);
+			extraServices = services.length % that.cpus;
+			for (var i = 0; i < extraServices; i++) coreServices[i]++;
+
+			/**
+			* Environment variables to pass to each child process.
+			* Here we define how many services per core will be
+			* executed, as well as the current service.
+			*/
+			var envVars = {};
+			envVars['coreServices'] = coreServices;
+			envVars['currentService'] = currentService;
+
+			/**
+			* Fork a process for each core
+			*/
+			console.log(envVars['currentService']);
+			for (var i = 0; i < that.cpus; i++){
+				envVars['currentService'] = envVars['currentService'] + coreServices[i];
+				cluster.fork(envVars);
+			}
 
 			/**
 			* Event Listeners
 			*/
 			cluster.on('listening', function(worker, address){
-				console.log('[LISTENING] Worker #' + worker.process.pid + ' is now connected to ' + address.address + ':' + address.port);
+				//console.log('[LISTENING] Worker #' + worker.process.pid + ' is now connected to ' + address.address + ':' + address.port);
 			});
 			cluster.on('exit', function(worker, code, signal){
+				/**
+				* Auto-restarts the worker if we have enabled this
+				*/
 				if(that.autoRestart){
 					console.log('[EXIT] Worker #' + worker.process.pid + ' has died, restarting...');
-					cluster.fork();
+					cluster.fork(envVars);
 				}
 			});
 		} else {
-			function startServer(workerID){
-				switch(workerID){
-					/**
-					* Logging
-					*/
-					case 1:
-						logServer.init().listen(logPort);
-						break;
-					/**
-					* Database
-					*/
-					case 2:
-						dbServer.init().listen(dbPort);
-						break;
-					/**
-					* API
-					*/
-					case 3:
-						apiServer.init().listen(apiPort);
-						break;
-					/**
-					* Main App
-					*/
-					case 4:
-						appServer.init().listen(appPort);
-						break;
+
+			function startServer(){
+				currentService--;
+
+				console.log('Starting process #' + currentService);
+
+				/**
+				* Services that require a server to be created.
+				*/
+				if(typeof services[currentService].port !== 'undefined'){
+					services[currentService].service.init().listen(services[currentService].port);
 				}
+				/**
+				* Other services
+				*/
+				else {
+					services[currentService].service.init();
+				}
+
+				
 			};
-			
+
 			/**
-			* Quad Core OR Dual Core + Hyper Threading
+			* If a service can be allocated to a single core
 			*/
-			if(that.cpus === 4){
-				startServer(cluster.worker.id);
+			if(coreServices[0] == 1) {
+				startServer();
+			} else {
+				/**
+				* Start each service, allocating it to the correct core
+				*/
+				for (var i = 0; i < coreServices[cluster.worker.id-1]; i++) {
+					startServer();
+				};
 			}
-			/**
-			* Dual Core OR Single Core + Hyper Threading
-			*/
-			else if(that.cpus === 2){
-				if(cluster.worker.id === 1){
-					startServer(1);
-					startServer(2);
-				} else if(cluster.worker.id === 2) {
-					startServer(3);
-					startServer(4);
-				}
-			}
-			/**
-			* Single Core
-			*/
-			else if(that.cpus === 1) {
-				startServer(1);
-				startServer(2);
-				startServer(3);
-				startServer(4);
-			}
-			/**
-			* Un-supported CPUs
-			*/
-			else {
-				console.error('Sorry, we do not support your CPU.');
-			}	
 		}
 	}
 };
 
-Server.start();
+/**
+* Start the cluster server
+*/
+Server.start(false);
